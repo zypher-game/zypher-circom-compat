@@ -1,0 +1,15 @@
+[package]
+name = "zypher-circom-compat"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ark-circom = { git = "https://github.com/zypher-game/circom-compat"}
+ark-bn254 = { version = "=0.4.0" }
+ark-std = { version = "=0.4.0", default-features = false }
+ark-groth16 = { version = "=0.4.0", default-features = false }
+ark-snark = { version = "=0.4.0" }
+num-bigint = "=0.4.3"
+
+[features]
+parallel = ["ark-std/parallel", "ark-groth16/parallel", "ark-circom/parallel"]
