@@ -1,46 +1,46 @@
+use anyhow::{anyhow, Error};
+use ark_bn254::{Bn254, Fr};
+use ark_circom::{CircomBuilder, CircomConfig};
+use ark_groth16::{Groth16, Proof};
+use ark_snark::SNARK;
+use num_bigint::BigInt;
+use once_cell::sync::OnceCell;
+use rand::thread_rng;
 use std::collections::HashMap;
 
-use ark_bn254::Bn254;
-use ark_circom::CircomConfig;
-use once_cell::sync::OnceCell;
+type GrothBn = Groth16<Bn254>;
 
-pub mod input;
-pub mod prove;
-
-#[derive(PartialEq, Eq, Hash, Debug)]
-pub enum Game {
-    GAME2048,
-    CRYPTORUMBLE,
+pub struct Input {
+    pub maps: HashMap<String, Vec<BigInt>>,
 }
 
-static CONFIG: OnceCell<HashMap<Game, CircomConfig<Bn254>>> = OnceCell::new();
+static CONFIG: OnceCell<CircomConfig<Bn254>> = OnceCell::new();
 
-pub fn init_config() {
-    let mut games = HashMap::new();
-
-    let cfg_2048 = CircomConfig::<Bn254>::new(
-        "materials/2048/game2048_60.wasm",
-        "materials/2048/game2048_60.r1cs",
-    )
-    .unwrap();
-    games.insert(Game::GAME2048, cfg_2048);
-
-    let cfg_cr = CircomConfig::<Bn254>::new(
-        "materials/crypto_rumble/crypto_rumble_30.wasm",
-        "materials/crypto_rumble/crypto_rumble_30.r1cs",
-    )
-    .unwrap();
-    games.insert(Game::CRYPTORUMBLE, cfg_cr);
-
-    CONFIG.set(games).unwrap();
+pub fn init_config(wasm: &str, r1cs: &str) {
+    let cfg = CircomConfig::<Bn254>::new(wasm, r1cs).unwrap();
+    CONFIG.set(cfg).unwrap();
 }
 
-pub fn get_config(game: &Game) -> Option<CircomConfig<Bn254>> {
-    match CONFIG.get() {
-        Some(c) => c.get(&game).cloned(),
-        None => {
-            init_config();
-            self::get_config(game)
-        }
-    }
+pub fn prove<T: TryInto<Input, Error = Error>>(input: T) -> Result<(Vec<Fr>, Proof<Bn254>), Error> {
+    let cfg = CONFIG
+        .get()
+        .ok_or_else(|| anyhow!("Failed to get circom config"))?;
+
+    let mut builder = CircomBuilder::new(cfg.clone());
+    let builder_input = input.try_into()?;
+    builder.push_inputs(builder_input.maps);
+
+    // TODO: setup
+    let circom = builder.setup();
+    let mut rng = thread_rng();
+    let params = GrothBn::generate_random_parameters_with_reduction(circom, &mut rng)?;
+
+    let circom = builder.build().map_err(|_| anyhow!("Failed to build"))?;
+    let pi = circom
+        .get_public_inputs()
+        .ok_or_else(|| anyhow!("Failed to get public inputs"))?;
+
+    let proof = GrothBn::prove(&params, circom, &mut rng)?;
+
+    Ok((pi, proof))
 }
