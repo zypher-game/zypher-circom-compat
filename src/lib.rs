@@ -14,6 +14,12 @@ pub struct Input {
     pub maps: HashMap<String, Vec<BigInt>>,
 }
 
+pub trait TryCast<T>: Sized {
+    type Error;
+
+    fn try_cast(self) -> Result<T, Self::Error>;
+}
+
 static CONFIG: OnceCell<(CircomConfig<Bn254>,ProvingKey<Bn254>)> = OnceCell::new();
 
 pub fn init_config(wasm: &str, r1cs: &str, zkey:&str) {
@@ -25,13 +31,13 @@ pub fn init_config(wasm: &str, r1cs: &str, zkey:&str) {
     CONFIG.set((cfg,prover_key)).unwrap();
 }
 
-pub fn prove<T: TryInto<Input, Error = Error>>(input: T) -> Result<(Vec<Fr>, Proof<Bn254>), Error> {
+pub fn prove<T: TryCast<Input, Error = Error>>(input: T) -> Result<(Vec<Fr>, Proof<Bn254>), Error> {
     let (cfg,prover_key) = CONFIG
         .get()
         .ok_or_else(|| anyhow!("Failed to get circom config"))?;
 
     let mut builder = CircomBuilder::new(cfg.clone());
-    let builder_input = input.try_into()?;
+    let builder_input = input.try_cast()?;
     builder.push_inputs(builder_input.maps);
 
     let circom = builder.build().map_err(|_| anyhow!("Failed to build"))?;
