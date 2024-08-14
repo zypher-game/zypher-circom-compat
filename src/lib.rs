@@ -65,3 +65,11 @@ pub fn prove(input: Input) -> Result<(Vec<Fr>, Proof<Bn254>), Error> {
 
     Ok((pi, proof))
 }
+
+pub fn verify(publics: &[Fr], proof: &Proof<Bn254>) -> Result<bool, Error> {
+    let (_, prover_key) = CONFIG
+        .get()
+        .ok_or_else(|| anyhow!("Failed to get circom config"))?;
+
+    GrothBn::verify(&prover_key.vk, publics, proof)
+}
