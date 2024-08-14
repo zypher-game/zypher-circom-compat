@@ -71,5 +71,5 @@ pub fn verify(publics: &[Fr], proof: &Proof<Bn254>) -> Result<bool, Error> {
         .get()
         .ok_or_else(|| anyhow!("Failed to get circom config"))?;
 
-    GrothBn::verify(&prover_key.vk, publics, proof)
+    Ok(GrothBn::verify(&prover_key.vk, publics, proof)?)
 }
