@@ -54,8 +54,15 @@ pub fn init_from_bytes(wasm: &[u8], r1cs: &[u8], zkey: &[u8]) -> Result<()> {
         sanity_check: false,
     };
 
-    let mut zkey_reader = BufReader::new(Cursor::new(zkey));
-    let (prover_key, _) = ark_circom::read_bls12_381_zkey(&mut zkey_reader)?;
+    // === debug
+    let mut rng = ChaChaRng::from_entropy();
+    let builder = CircomBuilder::new(cfg.clone());
+    let circom = builder.setup();
+    let (prover_key, _vk) = GrothBls::circuit_specific_setup(circom, &mut rng).unwrap();
+    // === debug
+
+    //let mut zkey_reader = BufReader::new(Cursor::new(zkey));
+    //let (prover_key, _) = ark_circom::read_bls12_381_zkey(&mut zkey_reader)?;
 
     CONFIG
         .set((cfg, prover_key))
@@ -83,6 +90,8 @@ pub fn prove(input: Input) -> Result<(Vec<Fr>, Proof<Bls12_381>)> {
 }
 
 pub fn verify(publics: &[Fr], proof: &Proof<Bls12_381>) -> Result<bool> {
+    println!("pi {:?}", publics);
+    println!("pf {:?}", proof);
     let (_, prover_key) = CONFIG
         .get()
         .ok_or_else(|| anyhow!("Failed to get circom config"))?;
