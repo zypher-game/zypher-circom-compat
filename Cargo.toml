@@ -6,9 +6,11 @@ edition = "2021"
 [dependencies]
 ark-circom = { git = "https://github.com/zypher-game/circom-compat" }
 ark-bn254 = { version = "=0.4.0" }
+ark-bls12-381 = { version = "=0.4.0" }
 ark-ff = { version = "0.4.0" }
 ark-ec = { version = "0.4.0" }
 ark-groth16 = { version = "=0.4.0", default-features = false }
+ark-relations = { version = "=0.4.0" }
 ark-snark = { version = "=0.4.0" }
 ethabi = "18.0"
 num-bigint = "=0.4.3"

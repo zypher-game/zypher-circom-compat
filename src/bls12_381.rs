@@ -1,7 +1,5 @@
-pub mod bls12_381;
-
 use anyhow::{anyhow, Error};
-use ark_bn254::{Bn254, Fr};
+use ark_bls12_381::{Bls12_381, Fr};
 use ark_circom::{
     circom::{R1CSFile, R1CS},
     CircomBuilder, CircomConfig, CircomReduction, WitnessCalculator,
@@ -21,20 +19,20 @@ use wasmer::{Module, Store};
 
 type Result<T> = core::result::Result<T, Error>;
 
-type GrothBn = Groth16<Bn254, CircomReduction>;
+type GrothBls = Groth16<Bls12_381, CircomReduction>;
 
 pub struct Input {
     pub maps: HashMap<String, Vec<BigInt>>,
 }
 
-static CONFIG: OnceCell<(CircomConfig<Bn254>, ProvingKey<Bn254>)> = OnceCell::new();
+static CONFIG: OnceCell<(CircomConfig<Bls12_381>, ProvingKey<Bls12_381>)> = OnceCell::new();
 
 pub fn init_config(wasm: &str, r1cs: &str, zkey: &str) -> Result<()> {
-    let cfg = CircomConfig::<Bn254>::new(wasm, r1cs)
+    let cfg = CircomConfig::<Bls12_381>::new(wasm, r1cs)
         .map_err(|_| anyhow!("Failed to new circom config"))?;
 
     let mut zkey_file = File::open(zkey)?;
-    let (prover_key, _) = ark_circom::read_zkey(&mut zkey_file)?;
+    let (prover_key, _) = ark_circom::read_bls12_381_zkey(&mut zkey_file)?;
 
     CONFIG
         .set((cfg, prover_key))
@@ -47,7 +45,7 @@ pub fn init_from_bytes(wasm: &[u8], r1cs: &[u8], zkey: &[u8]) -> Result<()> {
     let module = Module::new(&store, wasm)?;
 
     let reader = BufReader::new(Cursor::new(r1cs));
-    let r1cs_file = R1CSFile::<Bn254>::new(reader)?;
+    let r1cs_file = R1CSFile::<Bls12_381>::new(reader)?;
 
     let cfg = CircomConfig {
         wtns: WitnessCalculator::from_module(module)
@@ -57,7 +55,7 @@ pub fn init_from_bytes(wasm: &[u8], r1cs: &[u8], zkey: &[u8]) -> Result<()> {
     };
 
     let mut zkey_reader = BufReader::new(Cursor::new(zkey));
-    let (prover_key, _) = ark_circom::read_zkey(&mut zkey_reader)?;
+    let (prover_key, _) = ark_circom::read_bls12_381_zkey(&mut zkey_reader)?;
 
     CONFIG
         .set((cfg, prover_key))
@@ -65,7 +63,7 @@ pub fn init_from_bytes(wasm: &[u8], r1cs: &[u8], zkey: &[u8]) -> Result<()> {
     Ok(())
 }
 
-pub fn prove(input: Input) -> Result<(Vec<Fr>, Proof<Bn254>)> {
+pub fn prove(input: Input) -> Result<(Vec<Fr>, Proof<Bls12_381>)> {
     let (cfg, prover_key) = CONFIG
         .get()
         .ok_or_else(|| anyhow!("Failed to get circom config"))?;
@@ -79,26 +77,27 @@ pub fn prove(input: Input) -> Result<(Vec<Fr>, Proof<Bn254>)> {
         .ok_or_else(|| anyhow!("Failed to get public inputs"))?;
 
     let mut rng = ChaChaRng::from_entropy();
-    let proof = GrothBn::prove(prover_key, circom, &mut rng)?;
+    let proof = GrothBls::prove(prover_key, circom, &mut rng)?;
 
     Ok((pi, proof))
 }
 
-pub fn verify(publics: &[Fr], proof: &Proof<Bn254>) -> Result<bool> {
+pub fn verify(publics: &[Fr], proof: &Proof<Bls12_381>) -> Result<bool> {
     let (_, prover_key) = CONFIG
         .get()
         .ok_or_else(|| anyhow!("Failed to get circom config"))?;
 
-    Ok(GrothBn::verify(&prover_key.vk, publics, proof)?)
+    Ok(GrothBls::verify(&prover_key.vk, publics, proof)?)
 }
 
 #[inline]
 fn parse_filed_to_token<F: PrimeField>(f: &F) -> Token {
     let bytes = f.into_bigint().to_bytes_be();
+    println!("len: {}", bytes.len());
     Token::Uint(U256::from_big_endian(&bytes))
 }
 
-pub fn proofs_to_abi_bytes(publics: &[Fr], proof: &Proof<Bn254>) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn proofs_to_abi_bytes(publics: &[Fr], proof: &Proof<Bls12_381>) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut pi_token = vec![];
     for x in publics.iter() {
         pi_token.push(parse_filed_to_token(x));
@@ -124,3 +123,4 @@ pub fn proofs_to_abi_bytes(publics: &[Fr], proof: &Proof<Bn254>) -> Result<(Vec<
 
     Ok((pi_bytes, proof_bytes))
 }
+
